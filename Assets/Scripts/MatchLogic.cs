@@ -6,67 +6,63 @@ public class MatchLogic : MonoBehaviour
 {
     static public int rowsAmount = 20;
     static public int columnsAmount = 10;
-    public int[,] grid = new int[rowsAmount, columnsAmount];
+    private int[,] grid = new int[rowsAmount, columnsAmount];
     private int[,] lonely = new int[rowsAmount, columnsAmount];
     public GameObject blockObject;
-    private GameObject[,] blockObjects = new GameObject[rowsAmount, columnsAmount];
-    private int[,] blockStructure = new int[,] { { 0, 1, 0, }, { 1, 1, 1 }, { 0, 0, 0 } };
-    private int[,] fallingBlock;
+    public Material blockMaterial;
+    private Block fallingBlock;
+    private GameObject[] fallingBlockObjects;
     private int[] fallingBlockPosition = new int[2];
-    public Material Material1;
-    public Material Material2;
     private float delay = 1f;
     private float time = 0f;
     private bool falling = false;
 
-    void Start()
-    {
-        grid[0, 5] = 1;
-        grid[0, 6] = 1;
-        grid[1, 6] = 1;
-        grid[5, 5] = 1;
-
-        for (int i = 0; i < rowsAmount; i++)
-        {
-            for (int j = 0; j < columnsAmount; j++)
-            {
-                blockObjects[i, j] = Instantiate(blockObject, new Vector3(j, i, 0), new Quaternion(0, 0, 0, 0));
-                if (grid[i, j] == 1)
-                {
-                    blockObjects[i, j].GetComponent<Renderer>().material = Material2;
-                }
-            }
-        }
-    }
-
     void Update()
     {
+        time += Time.deltaTime;
+
         if (Input.GetButtonDown("Horizontal") && Input.GetAxisRaw("Horizontal") > 0)
         {
-            MoveBlockInX(1);
+            if (MoveBlockInX(1))
+                UpdateLonelyPrint();
         }
         if (Input.GetButtonDown("Horizontal") && Input.GetAxisRaw("Horizontal") < 0)
         {
-            MoveBlockInX(-1);
+            if (MoveBlockInX(-1))
+                UpdateLonelyPrint();
         }
-        if (Input.GetButtonDown("Vertical") && Input.GetAxisRaw("Vertical") > 0)
+        if (Input.GetKeyDown(KeyCode.Q))
         {
-            Rotate(-1);
+            if (Rotate(-1))
+                UpdateLonelyPrint();
+        }
+        if (Input.GetKeyDown(KeyCode.E))
+        {
+            if (Rotate(1))
+                UpdateLonelyPrint();
         }
         if (Input.GetButtonDown("Vertical") && Input.GetAxisRaw("Vertical") < 0)
         {
-            if (!MoveBlockInY(-1))
+            if (MoveBlockInY(-1))
+            {
+                UpdateLonelyPrint();
+            }
+            else
             {
                 StampToGrid();
                 falling = false;
             }
-        }
 
-        time += Time.deltaTime;
+            time = 0f;
+        }
 
         if (falling && time >= delay)
         {
-            if (!MoveBlockInY(-1))
+            if (MoveBlockInY(-1))
+            {
+                UpdateLonelyPrint();
+            }
+            else
             {
                 StampToGrid();
                 falling = false;
@@ -76,25 +72,10 @@ public class MatchLogic : MonoBehaviour
         }
         else if (!falling)
         {
-            AddBlock(blockStructure);
+            Block block = new Block(new int[,] { { 0, 1, 0 }, { 1, 1, 1 }, { 0, 0, 0 } }, blockMaterial);
+            AddBlock(block);
             falling = true;
             time = 0f;
-        }
-
-
-        for (int i = 0; i < rowsAmount; i++)
-        {
-            for (int j = 0; j < columnsAmount; j++)
-            {
-                if (grid[i, j] == 1 || lonely[i, j] == 1)
-                {
-                    blockObjects[i, j].GetComponent<Renderer>().material = Material2;
-                }
-                else
-                {
-                    blockObjects[i, j].GetComponent<Renderer>().material = Material1;
-                }
-            }
         }
     }
 
@@ -152,31 +133,36 @@ public class MatchLogic : MonoBehaviour
         return true;
     }
 
-    bool AddBlock(int[,] block)
+    bool AddBlock(Block block)
     {
         int[,] auxLonely = new int[rowsAmount, columnsAmount];
+        List<GameObject> auxFallingBlockObjects = new List<GameObject>();
 
-        for (int i = 0; i < block.GetLength(0); i++)
+        for (int i = 0; i < block.Structure.GetLength(0); i++)
         {
-            for (int j = 0; j < block.GetLength(1); j++)
+            for (int j = 0; j < block.Structure.GetLength(1); j++)
             {
-                if (block[i, j] == 1)
+                if (block.Structure[i, j] == 1)
                 {
-                    if (grid[rowsAmount - 1 - i, (columnsAmount / 2) - (block.GetLength(1) / 2) + j] == 1)
+                    if (grid[rowsAmount - 1 - i, (columnsAmount / 2) - (block.Structure.GetLength(1) / 2) + j] == 1)
                     {
                         return false;
                     }
                     else
                     {
-                        auxLonely[rowsAmount - 1 - i, (columnsAmount / 2) - (block.GetLength(1) / 2) + j] = 1;
+                        auxLonely[rowsAmount - 1 - i, (columnsAmount / 2) - (block.Structure.GetLength(1) / 2) + j] = 1;
+                        GameObject newBlock = Instantiate(blockObject, new Vector3((columnsAmount / 2) - (block.Structure.GetLength(1) / 2) + j, rowsAmount - 1 - i, 0), new Quaternion(0, 0, 0, 0));
+                        newBlock.GetComponent<Renderer>().material = block.Material;
+                        auxFallingBlockObjects.Add(newBlock);
                     }
                 }
             }
         }
 
         fallingBlockPosition[0] = rowsAmount - 1;
-        fallingBlockPosition[1] = (columnsAmount / 2) - (block.GetLength(1) / 2);
+        fallingBlockPosition[1] = (columnsAmount / 2) - (block.Structure.GetLength(1) / 2);
         fallingBlock = block;
+        fallingBlockObjects = auxFallingBlockObjects.ToArray();
         lonely = auxLonely;
         return true;
     }
@@ -197,35 +183,35 @@ public class MatchLogic : MonoBehaviour
 
     bool Rotate(int direction)
     {
-        int[,] auxBlock = new int[fallingBlock.GetLength(0), fallingBlock.GetLength(1)];
+        int[,] auxBlockStructure = new int[fallingBlock.Structure.GetLength(0), fallingBlock.Structure.GetLength(1)];
         int[,] auxLonely = new int[rowsAmount, columnsAmount];
 
         if (direction < 0)
         {
-            for (int i = 0; i < fallingBlock.GetLength(0); i++)
+            for (int i = 0; i < fallingBlock.Structure.GetLength(0); i++)
             {
-                for (int j = 0; j < fallingBlock.GetLength(1); j++)
+                for (int j = 0; j < fallingBlock.Structure.GetLength(1); j++)
                 {
-                    auxBlock[fallingBlock.GetLength(0) - j - 1, i] = fallingBlock[i, j];
+                    auxBlockStructure[fallingBlock.Structure.GetLength(0) - j - 1, i] = fallingBlock.Structure[i, j];
                 }
             }
         }
         else
         {
-            for (int i = 0; i < fallingBlock.GetLength(0); i++)
+            for (int i = 0; i < fallingBlock.Structure.GetLength(0); i++)
             {
-                for (int j = 0; j < fallingBlock.GetLength(1); j++)
+                for (int j = 0; j < fallingBlock.Structure.GetLength(1); j++)
                 {
-                    auxBlock[j, fallingBlock.GetLength(0) - i - 1] = fallingBlock[i, j];
+                    auxBlockStructure[j, fallingBlock.Structure.GetLength(0) - i - 1] = fallingBlock.Structure[i, j];
                 }
             }
         }
 
-        for (int i = 0; i < fallingBlock.GetLength(0); i++)
+        for (int i = 0; i < fallingBlock.Structure.GetLength(0); i++)
         {
-            for (int j = 0; j < fallingBlock.GetLength(1); j++)
+            for (int j = 0; j < fallingBlock.Structure.GetLength(1); j++)
             {
-                if (auxBlock[i, j] == 1)
+                if (auxBlockStructure[i, j] == 1)
                 {
                     if (fallingBlockPosition[0] - i >= 0
                         && fallingBlockPosition[1] + j >= 0
@@ -243,8 +229,25 @@ public class MatchLogic : MonoBehaviour
             }
         }
 
-        fallingBlock = auxBlock;
+        fallingBlock = new Block(auxBlockStructure, fallingBlock.Material);
         lonely = auxLonely;
         return true;
+    }
+
+    void UpdateLonelyPrint()
+    {
+        int count = 0;
+
+        for (int i = 0; i < rowsAmount; i++)
+        {
+            for (int j = 0; j < columnsAmount; j++)
+            {
+                if (lonely[i, j] == 1)
+                {
+                    fallingBlockObjects[count].GetComponent<Transform>().position = new Vector3(j, i, 0);
+                    count++;
+                }
+            }
+        }
     }
 }

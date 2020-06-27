@@ -2,16 +2,15 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class Block : ScriptableObject
+public class Block
 {
-    private int[,] Structure { get; }
-    private GameObject Model { get; set; }
-    private int Rotation { get; set; }
+    public int[,] Structure { get; }
 
-    public Block(int[,] structure, GameObject model, int rotation)
+    public Material Material { get; set; }
+
+    public Block(int[,] structure, Material material)
     {
         this.Structure = structure;
-        this.Model = model;
-        this.Rotation = rotation;
+        this.Material = material;
     }
 }
